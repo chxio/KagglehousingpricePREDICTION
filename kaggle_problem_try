@@ -1,0 +1,248 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Set display options to show all rows and columns
+pd.set_option('display.max_rows', None)
+pd.set_option('display.max_columns', None)
+
+df = pd.read_csv(r"C:\Users\a256852\Testing\Kaggle\house-prices-advanced-regression-techniques\train.csv")
+df.info()
+sns.heatmap(df.isnull(),yticklabels=False,cmap='viridis')
+# dropping columns
+
+df.drop(['Alley'],axis=1,inplace=True)
+df.drop(['PoolQC'],axis=1,inplace=True)
+df.drop(['Fence'],axis=1,inplace=True)
+df.drop(['MiscFeature'],axis=1,inplace=True)
+# df['LotFrontage'] is a float value column, replacing NA with mean
+df['LotFrontage'] = df['LotFrontage'].fillna(df['LotFrontage'].mean())
+
+# checking NULL value columns
+
+columns_with_null = df.columns[df.isnull().sum() > 0]
+print(len(columns_with_null))
+for column in columns_with_null:
+    print(f"Column: {column}, Data Type: {df[column].dtype}")
+
+# categorical columns null fill with mode values
+df['MasVnrType'] = df['MasVnrType'].fillna(df['MasVnrType'].mode()[0])
+df['MasVnrArea'] = df['MasVnrArea'].fillna(df['MasVnrArea'].mean())
+df['BsmtQual'] = df['BsmtQual'].fillna(df['BsmtQual'].mode()[0])
+df['BsmtCond'] = df['BsmtCond'].fillna(df['BsmtCond'].mode()[0])
+df['BsmtExposure'] = df['BsmtExposure'].fillna(df['BsmtExposure'].mode()[0])
+df['BsmtFinType1'] = df['BsmtFinType1'].fillna(df['BsmtFinType1'].mode()[0])
+df['BsmtFinType2'] = df['BsmtFinType2'].fillna(df['BsmtFinType2'].mode()[0])
+df['Electrical'] = df['Electrical'].fillna(df['Electrical'].mode()[0])
+df['FireplaceQu'] = df['FireplaceQu'].fillna(df['FireplaceQu'].mode()[0])
+df['GarageType'] = df['GarageType'].fillna(df['GarageType'].mode()[0])
+#since Garage year built is whole number type column , hence taking Median
+df['GarageYrBlt'] = df['GarageYrBlt'].fillna(df['GarageYrBlt'].median())
+df['GarageFinish'] = df['GarageFinish'].fillna(df['GarageFinish'].mode()[0])
+df['GarageQual'] = df['GarageQual'].fillna(df['GarageQual'].mode()[0])
+df['GarageCond'] = df['GarageCond'].fillna(df['GarageCond'].mode()[0])
+
+columns_with_null = df.columns[df.isnull().sum() > 0]
+print(len(columns_with_null))
+for column in columns_with_null:
+    print(f"Column: {column}, Data Type: {df[column].dtype}")
+    
+
+# all code above is applied with test data as well nad then reading the test data
+    
+# combine test data
+test_df = pd.read_csv(r"C:\Users\a256852\Testing\Kaggle\house-prices-advanced-regression-techniques\cleaned_test.csv")
+test_df.head()
+    
+# Creating a function that converts categorical features into columns, returns a concatenated dataframe
+def catg_onehot_multicols(multcolumns,final_df):
+    df_final = final_df
+    i = 0
+    for col in multcolumns:
+        print("Unique values of", col, ":", final_df[col].unique())  # Debug statement
+        df1 = pd.get_dummies(final_df[col], drop_first=True)
+        
+        final_df.drop([col],axis=1,inplace=True)
+        if(i==0):
+            df_final = df1.copy()
+        else:
+            df_final = pd.concat([df_final, df1], axis=1)
+        i = i+1
+        
+    df_final = pd.concat([final_df, df_final], axis=1)
+    
+    return df_final
+
+def find_missing_columns(df1, df2):
+    """
+    Find columns missing in df2 compared to df1.
+    
+    Parameters:
+        df1 (DataFrame): First DataFrame.
+        df2 (DataFrame): Second DataFrame.
+        
+    Returns:
+        list: List of columns missing in df2 compared to df1.
+    """
+    missing_columns = list(set(df1.columns) - set(df2.columns))
+    return missing_columns
+
+# Assuming your DataFrames are named 'df' and 'test_df'
+missing_columns = find_missing_columns(df, test_df)
+print("Columns missing in test_df compared to df:", missing_columns)
+
+final_df = pd.concat([df,test_df], axis=0)
+final_df.shape
+
+catg_columns = list(final_df.select_dtypes(include=['object']).columns)
+print(f"Number of Categorical columns : {len(catg_columns)}")
+print(catg_columns)
+
+final_df = catg_onehot_multicols(catg_columns, final_df)
+
+# Removing Duplicates
+final_df = final_df.loc[:,~final_df.columns.duplicated()]
+
+# making test and x_train, y_train data
+df_train = final_df.iloc[:1460,:]
+df_test = final_df.iloc[1460:,:]
+print(df_test.shape)
+df_test = df_test.drop(['SalePrice'], axis = 1)
+print(df_test.shape)
+x_train = df_train.drop(['SalePrice'], axis =1)
+y_train = df_train['SalePrice']
+x_train = x_train.drop(x_train.index[-1])
+y_train = y_train.drop(y_train.index[-1])
+
+import pandas as pd
+import numpy as np
+
+
+# Feature selection
+def remove_highly_correlated_features(df, threshold=0.7):
+    """
+    Remove highly correlated features from the DataFrame.
+    
+    Parameters:
+    df (pd.DataFrame): The input DataFrame.
+    threshold (float): The correlation threshold to identify highly correlated features.
+    
+    Returns:
+    pd.DataFrame: The DataFrame with highly correlated features removed.
+    list: The list of features that were removed.
+    """
+    # Calculate the correlation matrix
+    corr_matrix = df.corr().abs()
+
+    # Create a boolean mask to identify the upper triangle of the correlation matrix
+    upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+
+    # Find features with a correlation greater than the threshold
+    to_drop = [column for column in upper.columns if any(upper[column] > threshold)]
+    
+    print(f"Features to drop: {to_drop}")
+    
+    # Drop the highly correlated features
+    df_cleaned = df.drop(columns=to_drop)
+    
+    return df_cleaned, to_drop
+
+# Assuming x_train is your DataFrame
+x_train_cleaned, to_drop = remove_highly_correlated_features(x_train)
+
+print("DataFrame after removing highly correlated features:")
+print(x_train_cleaned.columns)
+
+# Reassign x_train to the cleaned DataFrame
+x_train = x_train_cleaned
+
+# Drop the same features from df_test
+df_test_cleaned = df_test.drop(columns=to_drop)
+
+print("Shape of df_test:", df_test_cleaned.shape)
+print("Shape of x_train:", x_train.shape)
+
+# Reassign df_test to the cleaned DataFrame
+df_test = df_test_cleaned
+
+
+import xgboost
+regressor=xgboost.XGBRegressor(objective='reg:squarederror')
+
+booster = ['gbtree', 'gblinear']
+base_score = [0.25, 0.5, 0.75, ]
+
+n_estimators = [100, 500, 900, 1100, 1500]
+max_depth = [2, 3, 5, 10, 15]
+booster=['gbtree','gblinear']
+learning_rate=[0.05,0.1,0.15,0.20]
+min_child_weight=[1,2,3,4]
+ 
+
+# Define the grid of hyperparameters to search
+hyperparameter_grid = {
+    'n_estimators': n_estimators,
+    'max_depth':max_depth,
+    'learning_rate':learning_rate,
+    'min_child_weight':min_child_weight,
+    'booster':booster,
+    'base_score':base_score
+    }
+
+
+import xgboost
+regressor=xgboost.XGBRegressor(objective='reg:squarederror')
+
+booster = ['gbtree', 'gblinear']
+base_score = [0.25, 0.5, 0.75, ]
+
+n_estimators = [100, 500, 900, 1100, 1500]
+max_depth = [2, 3, 5, 10, 15]
+booster=['gbtree','gblinear']
+learning_rate=[0.05,0.1,0.15,0.20]
+min_child_weight=[1,2,3,4]
+ 
+
+# Define the grid of hyperparameters to search
+hyperparameter_grid = {
+    'n_estimators': n_estimators,
+    'max_depth':max_depth,
+    'learning_rate':learning_rate,
+    'min_child_weight':min_child_weight,
+    'booster':booster,
+    'base_score':base_score
+    }
+
+# Set up the random search with 4-fold cross validation
+
+from sklearn.model_selection import RandomizedSearchCV
+random_cv = RandomizedSearchCV(estimator=regressor,
+            param_distributions=hyperparameter_grid,
+            cv=5, n_iter=50,
+            scoring = 'neg_mean_absolute_error',n_jobs = 4,
+            verbose = 5,
+            return_train_score = True,
+            random_state=42)
+random_cv.fit(x_train,y_train)
+
+random_cv.best_estimator_
+# Got this result
+regressor=xgboost.XGBRegressor(base_score=0.25, booster='gbtree', colsample_bylevel=1,
+       colsample_bytree=1, gamma=0, learning_rate=0.1, max_delta_step=0,
+       max_depth=2, min_child_weight=1, missing=None, n_estimators=900,
+       n_jobs=1, nthread=None, objective='reg:squarederror', random_state=0,
+       reg_alpha=0, reg_lambda=1, scale_pos_weight=1, seed=None,
+       subsample=1)
+regressor.fit(x_train,y_train)
+y_pred = regressor.predict(df_test)
+
+
+
+
+# Creating submission file
+pred = pd.DataFrame(y_pred)
+sub_df = pd.read_csv(r"C:\Users\a256852\Testing\Kaggle\house-prices-advanced-regression-techniques\sample_submission.csv")
+datasets = pd.concat([sub_df['Id'],pred],axis=1)
+datasets.columns=['Id', 'SalePrice']
+datasets.to_csv(r"C:\Users\a256852\Testing\Kaggle\house-prices-advanced-regression-techniques\Submission\sample_submission.csv")
